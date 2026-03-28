@@ -1,0 +1,230 @@
+close all; clear variables;
+
+InitSensorFusion;
+
+%Data load from logged signals
+data = load('loggedData.mat');
+time_raw = data.logsout{2}.Values.Time(1:end);
+ICM42_raw = data.logsout{2}.Values.Data;            %Temp,AccX,AccY,AccZ,GyrX,GyrY,GyrZ
+MPU_raw = data.logsout{2}.Values.Data;              %AccX,AccY,AccZ,Temp,GyrX,GyrY,GyrZ
+
+ICM42_sim_trc = data.logsout{4}.Values.Data;
+ICM42_sim_eul = data.logsout{3}.Values.Data;
+
+
+Ts = kalman_Ts;
+Fs = 1/Ts;
+
+wait_time = 10;
+
+time = time_raw(1:end-wait_time*Fs+1);
+
+gyr_offset = [-0.1319, -0.6878, 0.1737];    %offset from 24 hour measurment
+
+%ICM data after moving average and bias correction
+ICM_acc = movmean(ICM42_raw(wait_time*Fs:end,2:4),[3 0]);
+ICM_gyr =  movmean(ICM42_raw(wait_time*Fs:end,5:end)- mean(ICM42_raw(wait_time*Fs:wait_time*Fs+100,5:end)),[3 0]);
+ICM_temp = movmean(ICM42_raw(wait_time*Fs:end,1),[3 0]);
+
+%MPU data
+MPU_acc = MPU_raw(10:end,1:3);
+MPU_gyr = MPU_raw(10:end,5:end);
+MPU_temp = MPU_raw(10:end,4);
+
+%Mag data dummy for reference kalman
+mag_dummy = zeros(size(ICM_acc,1),3);
+
+%% Batch original kalman
+[orientation_quat, trc, g] = kalman_sensor_fusion([ICM_acc, ICM_gyr], Fs, params_batch, [1, 5]);
+orientation_eul = Quat2EulerAngles(orientation_quat);
+
+%% Periodize batch kalman
+
+Param = params_batch;
+IMU_Fs = Fs;
+QS = [1,5];
+rot_quat = init_rot_quat;
+acc_bias = init_acc_bias;
+P = init_P;
+% g = 9.8121;
+
+P_out = init_P;
+State_out = init_rot_quat;
+acc_bias_out = init_acc_bias;
+
+accel = ICM_acc;
+gyro = deg2rad(ICM_gyr);
+
+len = size(accel,1);
+trc = zeros(1,len);
+dt = 1/IMU_Fs;
+
+quaternion = [State_out' acc_bias_out']';
+
+% P = Param(1)*eye(7); % initial error covariance matrix
+
+% PROCESS NOISE
+SIGMA_a = dt*Param(5)^2*eye(3);
+
+% Constants
+% g = norm(mean(accel(QS(1)*IMU_Fs:QS(2)*IMU_Fs, :))); % gravitational acceleration
+
+
+for i = 1:len
+
+    accel = ICM_acc(i, :);
+    gyro = deg2rad(ICM_gyr(i, :));
+
+    P = P_out;
+    quaternion = [State_out' acc_bias_out']';
+
+    % Updating Gyro noise adaptively (Q)
+    if norm(gyro) <= Param(4)
+        SIGMA_g = Param(2)^2*eye(3);
+    else
+        SIGMA_g = Param(3)^2*eye(3);
+    end
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%% PREDICTION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    wx = gyro(1); wy = gyro(i,2); wz = gyro(i,3);
+    omega = 0.5*[0    wz -wy wx
+        -wz    0     wx wy
+        wy -wx    0    wz
+        -wx -wy -wz  0];%skew symmetric
+
+    Phi = [expm(omega*dt) zeros(4,3);
+           zeros(3,4)     eye(3)     ];
+    
+    % Project the state ahead
+    quaternion_ = Phi*quaternion;
+    
+    CSI = [[0 -quaternion(3) quaternion(2);
+        quaternion(3) 0 -quaternion(1)
+        -quaternion(2) quaternion(1) 0]+quaternion(4)*eye(3);...
+        -quaternion(1:3)'];
+    
+    Q = [(dt/2)^2*CSI*SIGMA_g*CSI' zeros(4,3);
+        zeros(3,4) SIGMA_a      ];
+    
+    % Compute the a priori covariance matrix
+    P_= Phi*P*Phi'+Q;
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%% UPDATE STEP %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    q1 = quaternion_(1); q2 = quaternion_(2); q3 = quaternion_(3); q4 = quaternion_(4);
+    
+    % Linearize the measurement equation: Jacobian
+    F = [2*g*[q3 -q4 q1 -q2
+        q4 q3 q2 q1
+        -q1 -q2 q3 q4],eye(3)];
+        
+    
+    % Adapt the measurement covariance matrix
+    C = [q1^2-q2^2-q3^2+q4^2 2*(q1*q2+q3*q4) 2*(q1*q3-q2*q4)
+        2*(q1*q2-q3*q4) -q1^2+q2^2-q3^2+q4^2 2*(q2*q3+q1*q4)
+        2*(q1*q3+q2*q4) 2*(q2*q3-q1*q4) -q1^2-q2^2+q3^2+q4^2];
+    
+    % Accelerometer
+    if norm(accel(i,:) - C*[0;0;g] - quaternion_(5:7)) < Param(9) % (Eq 70 in 2011 paper)
+        std_acc = Param(7);
+    else
+        std_acc = Param(8);
+    end
+    
+   
+    % Measurement covariance
+
+    R = [std_acc^2*eye(3)];
+    
+    % Compute the Kalman Gain
+    K = P_* F' * (F * P_ * F' + R)^-1;
+    
+    % Compute the a posteriori state estimate
+    % z = [accel(i,:)'; mag(i,:)']; % measurement vector
+    z = [accel(i,:)']; % measurement vector
+    z_predict = C*[0; 0; g] + quaternion_(5:end);
+    quaternion = quaternion_ + K*(z - z_predict);
+    
+    % Normalize the quaternion
+    quaternion(1:4) = quaternion(1:4)/norm(quaternion(1:4));
+    
+    % Compute the a posteriori covariance matrix
+    P_out = P_ - K*F*P_;
+    
+    State_out = quaternion(1:4);
+    acc_bias_out = quaternion(5:7);
+    trc(i) = trace(P_out);
+
+    orientation_eul_peri(i,:) = Quat2EulerAngles(State_out');    
+end
+
+
+figure
+plot(time, orientation_eul_peri);
+
+
+
+%% 1-Period kalman
+
+
+% Preallocate
+eul_1period = zeros(3, length(ICM42_raw(1:end,2:4)));  
+eul_sim = eul_1period;
+trc_1period = zeros(1, length(ICM42_raw(1:end,2:4)));
+
+n_average = 4;
+
+ICM_mov_acc = zeros(length(ICM_acc(wait_time*Fs:end,:)),3);
+ICM_mov_gyr = ICM_mov_acc;
+ICM_mov_acc_w = zeros(n_average,3);
+ICM_mov_gyr_w = zeros(n_average,3);
+
+ICM42_raw_trimmed = ICM42_raw(wait_time*Fs:end,2:7);
+
+
+for i = 1:length(ICM42_raw_trimmed(:,:))
+
+    % ICM_mov_acc = [ICM(i,2:4)];
+    % ICM_mov_gyr = [ICM(i,5:7)];
+
+    ICM_mov_acc_w = [ICM42_raw_trimmed(i,1:3); ICM_mov_acc_w(1:n_average-1,:)];
+    ICM_mov_gyr_w = [ICM42_raw_trimmed(i,4:6)-gyr_offset; ICM_mov_gyr_w(1:n_average-1,:)];
+
+    ICM_mov_acc(i,:) = mean(ICM_mov_acc_w);
+    ICM_mov_gyr(i,:) =  mean(ICM_mov_gyr_w);
+
+    [rot_quat, acc_bias, P] = kalman_1period([ICM_acc(i,:), ICM_gyr(i,:)], IMU_Fs, params_1period, g, rot_quat, acc_bias, P);
+    eul_1period(:,i) = Quat2EulerAngles(rot_quat');
+    trc_1period(i) = trace(P);
+    rq(i,:) = rot_quat;
+    
+end
+
+for i = 1:size(ICM42_sim_eul, 3)
+    eul_sim(:, i) = ICM42_sim_eul(1, :, i);
+end
+
+%% Plotting
+figure
+subplot(3,2,1)
+plot(time, ICM_acc)
+subplot(3,2,2)
+plot(time, ICM_gyr)
+subplot(3,2,[3 4])
+plot(time, orientation_eul)
+subplot(3,2,[5 6])
+plot(time, trc)
+
+
+figure
+subplot(5,2,1)
+plot(time_raw, ICM42_raw(1:end,2:4))
+subplot(5,2,2)
+plot(time_raw, ICM42_raw(1:end,5:7))
+subplot(5,2,[3 4])
+plot(time_raw, eul_1period)
+subplot(5,2,[5 6])
+plot(time_raw, trc_1period)
+subplot(5,2,[7 8])
+plot(time_raw, eul_sim)
+subplot(5,2,[9 10])
+plot(time_raw, ICM42_sim_trc)
