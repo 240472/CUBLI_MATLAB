@@ -19,7 +19,7 @@ KV = 330;                   % motor constant RPM/V
 friction_slope = 0.023e-3;
 friction_offset = 0.0001;
 
-Iwg = 3.75e-4;              %moment of inertia of WHEEL to its center of gravity 3.75e-3
+Iwg = 315e-6;              %moment of inertia of WHEEL to its center of gravity 3.75e-3 3.75e-4
 Isg = 1.25e-4;              %moment of inertia of STRUCTURE to its center of gravity
 mw = 0.16;                  %weight of WHEEL
 ms = 0.8;                   %weight of STRUCTURE
