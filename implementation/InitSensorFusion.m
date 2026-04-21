@@ -6,7 +6,7 @@ sl_refresh_customizations;
 
 stateInit = StateEnum.Initialization;
 
-simulink_Ts = 0.01; %must be shortest
+simulink_Ts = 0.01; %must be the shortest
 sensor_Ts = 0.01;
 kalman_Ts = 0.01;
 
@@ -18,6 +18,10 @@ avg_order = 2;
 KV = 330;                   % motor constant RPM/V
 friction_slope = 0.023e-3;
 friction_offset = 0.0001;
+
+torque_inv_function = [5.521532153246342	0.067624095000329	0.439209299484778	0];
+
+
 
 Iwg = 315e-6;              %moment of inertia of WHEEL to its center of gravity 3.75e-3 3.75e-4
 Isg = 1.25e-4;              %moment of inertia of STRUCTURE to its center of gravity
