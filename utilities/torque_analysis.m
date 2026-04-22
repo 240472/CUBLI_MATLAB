@@ -2,11 +2,14 @@ clear all;
 close all;
 clc;
 
+%file_names = ["work\torque_analysis_005_correction_v2.mat"];
+file_names = ["work\torque_analysis_011_negative.mat", "work\torque_analysis_011.mat"];
 %file_names = ["work\torque_analysis_005_negative_v3.mat", "work\torque_analysis_005_v3.mat"];
+
 % Check filename, trim_time and indeces from which are data taken
 load("work\torque_analysis_005_negative.mat")
 
-file_names = ["work\torque_analysis_005_correction_v2.mat"];
+
 
 merged_torque_segments = [];
 
@@ -15,12 +18,12 @@ for k = 1:size(file_names,1)
 load(file_names(k));
 
 trim_time_begin = 40;
-trim_time_end = 615; 
+trim_time_end = 560; 
 transient_time = 0.15;
 % KV = 330;
 
 % Reading data
-time = data{1}.Values.Time;
+time = data{3}.Values.Time;
 Ts = time(2) - time(1);
 for j = 1:data.numElements
     switch data{j}.Name
@@ -124,7 +127,7 @@ f(4) = 0;
 f_inv(4) = 0;
 
 figure
-x_lin = linspace(-0.05,0.05,1000);
+x_lin = linspace(-0.55,0.55,1000);
 plot(x_lin, [polyval(f,polyval(f_inv,x_lin)); polyval(f,x_lin)])
 legend("f_corrected", "f")
 

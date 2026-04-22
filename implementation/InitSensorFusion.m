@@ -1,7 +1,7 @@
 
-clear mex; clear classes; clear functions;
-rehash toolboxcache;
-sl_refresh_customizations;
+% clear mex; clear classes; clear functions;
+% rehash toolboxcache;
+% sl_refresh_customizations;
 
 
 stateInit = StateEnum.Initialization;
@@ -19,7 +19,7 @@ KV = 330;                   % motor constant RPM/V
 friction_slope = 0.023e-3;
 friction_offset = 0.0001;
 
-torque_inv_function = [5.521532153246342	0.067624095000329	0.439209299484778	0];
+torque_inv_function = [0.162097095719061	0.067726653685203	0.495960303984765	0];
 
 
 
