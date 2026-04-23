@@ -25,8 +25,8 @@ torque_inv_function = [0.162097095719061	0.067726653685203	0.495960303984765	0];
 
 Iwg = 315e-6;              %moment of inertia of WHEEL to its center of gravity 3.75e-3 3.75e-4
 Isg = 125e-6;              %moment of inertia of STRUCTURE to its center of gravity
-mw = 0.15;                  %weight of WHEEL
-ms = 0.6;                   %weight of STRUCTURE
+mw = 0.22;                  %weight of WHEEL
+ms = 0.4;                   %weight of STRUCTURE
 d = 0.15*sqrt(2)/2;         %distance from spinning axis to center of gravity 
 g = 9.81;
 
