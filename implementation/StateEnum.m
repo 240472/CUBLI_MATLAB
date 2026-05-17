@@ -7,6 +7,6 @@ classdef StateEnum < Simulink.IntEnumType
         StartingMotors(3)
         Running(4)
         StoppingMotors(5)
-        Error(6)
+        SetSetpoint(6)
     end
 end
