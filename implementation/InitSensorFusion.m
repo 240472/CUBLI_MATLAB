@@ -52,7 +52,8 @@ Ic0 = Is0 + Iw0 - Iwg;      %moment of inertia of CUBE (without Iwg)
 % (1,11) stdMag        = magnetometer noise for measurement noise covariance matrix dynamic
 % (1,12) epsilon_m     = threshold for switching between (1,10) & (1,11)
 
-P_initial = 10;
+P_initial = [eye(4)*10, zeros(4,3); [zeros(3,4), eye(3)*0.005]];
+P_initial_const = 10;
 SIGMA_static = 10*deg2rad(0.0386);
 SIGMA_dynamic = deg2rad(0.0386); %deg2rad(0.0386)
 epsilon_g = 300*pi/180;
@@ -68,14 +69,15 @@ epsilon_m = 0.1;
 SUPER_PARAMS = [deg2rad(0.2), deg2rad(0.2), 300*pi/180, 0, 0.1, 1e24, 0.02];
 
 params_1period = [SIGMA_static, SIGMA_dynamic, epsilon_g, stdBiasAcc_in, stdAcc_static, stdAcc_dynamic, epsilon_a];
-params_batch = [P_initial, SIGMA_static, SIGMA_dynamic, epsilon_g, stdBiasAcc_in, stdBiasMag_in, stdAcc_static, stdAcc_dynamic, epsilon_a, stdMag_static, stdMag_dynamic, epsilon_m];
+params_batch = [P_initial_const, SIGMA_static, SIGMA_dynamic, epsilon_g, stdBiasAcc_in, stdBiasMag_in, stdAcc_static, stdAcc_dynamic, epsilon_a, stdMag_static, stdMag_dynamic, epsilon_m];
 ICM42_params = SUPER_PARAMS;
 
 %init_rot_quat = [-0.216276369264893	0.976272891769176	-0.007917987479056	0.007285490273662]';
 init_rot_quat = [0 0 0 1]';
 
 %init_rot_quat = [sin(pi/2); 0; 0; cos(pi/2)];
-init_acc_bias = [0 0 0]';
+%init_acc_bias = [0 0 0]';
+init_acc_bias = [-0.0076;0.0233;0.0477];
 init_P = P_initial;
 
 ICM42_gyr_offset = [-0.1319, -0.6878, 0.1737];  %init value, after rest period measured by sensors
@@ -84,7 +86,7 @@ ICM42_g = 9.8121;                               %init value, after rest period m
 ground_true_g = 9.81275;
 acc_calib_matrix = [0.9990,0.0039,0.0028;4.2507e-04,0.9990,-0.0085;0.0015,0.0090,0.9997];
 
-acc_init_bias = [-0.0078;0.0237;0.0475];
+%acc_init_bias = [-0.0078;0.0237;0.0475];
 
 % P_initial = 1e3;
 % SIGMA_static = 1e3;
